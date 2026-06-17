@@ -17,6 +17,7 @@ Résumés automatiques en français par IA (Groq) envoyés sur Discord.
 ### 🤖 AGENT_SSI
 Bot Discord qui répond aux questions cybersécurité avec la commande `!ssi`.
 Propulsé par Groq (LLaMA 3.1) avec un prompt expert SSI/ISO 27001.
+<img width="1507" height="217" alt="image" src="https://github.com/user-attachments/assets/f41698c5-81e3-40c7-8260-cbb963f6dd33" />
 
 ### 🏍️ METEO-MOTO
 Rapport météo quotidien pour 3 villes (Saint-Xandre, Niort, Surgères).
