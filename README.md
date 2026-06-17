@@ -25,6 +25,7 @@ Conditions moto (température, vent, pluie) envoyées sur Discord matin et soir.
 
 ### 💾 BACKUP_N8N
 Sauvegarde automatique de tous les workflows n8n vers ce repo GitHub.
+<img width="822" height="223" alt="image" src="https://github.com/user-attachments/assets/a674b12c-14b9-485b-8048-bfc0856998cc" />
 
 ### 🔎 RECHERCHE_ALTERNANCE
 Recherche automatisée d'offres d'alternance via JSearch, SerpAPI et Hunter.io.
