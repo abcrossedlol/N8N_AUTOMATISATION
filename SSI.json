@@ -1,0 +1,98 @@
+{
+  "updatedAt": "2026-06-17T20:44:27.013Z",
+  "createdAt": "2026-06-17T20:44:16.735Z",
+  "id": "YOUR_WORKFLOW_ID",
+  "name": "SSI",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "cronExpression", "expression": "0 8 * * *"}]}},
+      "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.3, "position": [80, 48],
+      "id": "c6f53ba6-e46c-4263-b24e-547008eba47d", "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {"url": "https://www.cert.ssi.gouv.fr/feed/", "options": {}},
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [496, -112],
+      "id": "029af86a-41f2-4e70-a643-c6f3272f1fb6", "name": "CERT-FR"
+    },
+    {
+      "parameters": {"url": "https://cyber.gouv.fr/actualites/rss/", "options": {}},
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [496, 48],
+      "id": "693680bd-346a-4e2b-b779-76335092745b", "name": "ANSSI"
+    },
+    {
+      "parameters": {"url": "https://grahamcluley.com/feed/", "options": {}},
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [496, 208],
+      "id": "947d76bd-51ac-4be8-a631-2d44cbbc5175", "name": "Graham Cluley"
+    },
+    {
+      "parameters": {"url": "https://krebsonsecurity.com/feed/", "options": {}},
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [496, 368],
+      "id": "a12ed4da-8853-40d7-b04b-08cf125e032b", "name": "Krebs on Security"
+    },
+    {
+      "parameters": {"numberInputs": 4},
+      "type": "n8n-nodes-base.merge", "typeVersion": 3.2, "position": [720, 16],
+      "id": "fd94ae43-ca73-4be5-b6dd-5e3e67179e4f", "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputs = $input.all();\nconst items = [];\nfor (const input of inputs) {\n  const xml = input.json.data;\n  if (!xml) continue;\n  const itemRegex = /<item>([\\s\\S]*?)<\\/item>/g;\n  let match;\n  while ((match = itemRegex.exec(xml)) !== null) {\n    const item = match[1];\n    const title = (item.match(/<title><!\\[CDATA\\[(.*?)\\]\\]><\\/title>/) || item.match(/<title>(.*?)<\\/title>/))?.[1] || 'Sans titre';\n    const link = (item.match(/<link>(.*?)<\\/link>/) || [])[1] || '';\n    const description = (item.match(/<description><!\\[CDATA\\[(.*?)\\]\\]><\\/description>/) || item.match(/<description>(.*?)<\\/description>/))?.[1] || '';\n    const pubDate = (item.match(/<pubDate>(.*?)<\\/pubDate>/) || [])[1] || '';\n    let source = '🌐 Autre';\n    if (link.includes('cert.ssi.gouv.fr')) source = '🇫🇷 CERT-FR';\n    else if (link.includes('cyber.gouv.fr')) source = '🇫🇷 ANSSI';\n    else if (link.includes('grahamcluley.com')) source = '🔎 Graham Cluley';\n    else if (link.includes('krebsonsecurity.com') || link.includes('bitdefender.com')) source = '🔐 Krebs on Security';\n    const prompt = 'Résume cet article de cybersécurité en 2 phrases maximum en français, de façon claire et professionnelle. Titre : ' + title + ' Contenu : ' + description.substring(0, 400);\n    items.push({ json: { title, link, description: description.substring(0, 400), pubDate, source, prompt } });\n  }\n}\nreturn items.sort((a, b) => new Date(b.json.pubDate) - new Date(a.json.pubDate)).slice(0, 5);"
+      },
+      "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [864, 48],
+      "id": "f972f510-1580-4cc9-bce5-9e26d7750b7b", "name": "PARSER RSS"
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.1-8b-instant\",\n  \"max_tokens\": 300,\n  \"messages\": [{\"role\": \"user\", \"content\": \"={{ $json.prompt }}\"}]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [1040, 48],
+      "id": "eaa261de-7847-4339-8141-b24baf8dde7f", "name": "GROK",
+      "credentials": {"httpCustomAuth": {"id": "N8N_CREDENTIAL_ID_GROQ", "name": "GROK API"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst lines = items.map(item => {\n  const resume = item.json.choices?.[0]?.message?.content || 'Résumé indisponible';\n  const inputData = $('PARSER RSS').all();\n  const index = items.indexOf(item);\n  const original = inputData[index]?.json || {};\n  const title = original.title || 'Sans titre';\n  const link = original.link || '';\n  const source = original.source || '';\n  return `${source} 📰 **${title}**\\n${resume}\\n🔗 ${link}`;\n});\nconst content = `🛡️ **Veille SSI du ${new Date().toLocaleDateString('fr-FR')}**\\n\\n${lines.slice(0, 5).join('\\n\\n---\\n\\n')}`.substring(0, 1990);\nreturn [{ json: { content } }];"
+      },
+      "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1200, 48],
+      "id": "b052abcf-5f63-4c2c-83b5-d41589e9de6d", "name": "FORMATEUR"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "DISCORD_WEBHOOK_URL_SSI",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "bodyParameters": {"parameters": [{"name": "content", "value": "={{ $json.content }}"}]},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [1376, 48],
+      "id": "e60926cd-4556-4e7b-ba61-a956b7dc79c6", "name": "DISCORD"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {"main": [[{"node": "CERT-FR", "type": "main", "index": 0}, {"node": "ANSSI", "type": "main", "index": 0}, {"node": "Graham Cluley", "type": "main", "index": 0}, {"node": "Krebs on Security", "type": "main", "index": 0}]]},
+    "CERT-FR": {"main": [[{"node": "Merge", "type": "main", "index": 0}]]},
+    "ANSSI": {"main": [[{"node": "Merge", "type": "main", "index": 1}]]},
+    "Graham Cluley": {"main": [[{"node": "Merge", "type": "main", "index": 2}]]},
+    "Krebs on Security": {"main": [[{"node": "Merge", "type": "main", "index": 3}]]},
+    "Merge": {"main": [[{"node": "PARSER RSS", "type": "main", "index": 0}]]},
+    "PARSER RSS": {"main": [[{"node": "GROK", "type": "main", "index": 0}]]},
+    "GROK": {"main": [[{"node": "FORMATEUR", "type": "main", "index": 0}]]},
+    "FORMATEUR": {"main": [[{"node": "DISCORD", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "binaryMode": "separate"},
+  "staticData": null, "meta": null, "pinData": {},
+  "versionId": "YOUR_VERSION_ID",
+  "activeVersionId": null, "triggerCount": 0,
+  "shared": [{"updatedAt": "2026-06-17T20:44:16.737Z", "createdAt": "2026-06-17T20:44:16.737Z", "role": "workflow:owner", "workflowId": "YOUR_WORKFLOW_ID", "projectId": "YOUR_N8N_PROJECT_ID"}],
+  "activeVersion": null, "tags": []
+}
