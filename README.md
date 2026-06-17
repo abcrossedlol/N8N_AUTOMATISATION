@@ -23,6 +23,7 @@ Propulsé par Groq (LLaMA 3.1) avec un prompt expert SSI/ISO 27001.
 ### 🏍️ METEO-MOTO
 Rapport météo quotidien pour 3 villes (Saint-Xandre, Niort, Surgères).
 Conditions moto (température, vent, pluie) envoyées sur Discord matin et soir.
+<img width="1267" height="411" alt="image" src="https://github.com/user-attachments/assets/04edad06-9479-489b-bcf9-b1244f1f5639" />
 
 ### 💾 BACKUP_N8N
 Sauvegarde automatique de tous les workflows n8n vers ce repo GitHub.
