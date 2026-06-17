@@ -8,6 +8,7 @@ Collection de workflows n8n
 Veille automatique des CVE critiques (CVSS ≥ 7) via l'API NVD.
 Trie les vulnérabilités par techno (Windows, Linux, Apache, Cisco) 
 et envoie des alertes dans des salons Discord dédiés chaque jour à 8h.
+<img width="1621" height="857" alt="image" src="https://github.com/user-attachments/assets/e49ab2fd-b615-4bf3-b6f1-566ddc980524" />
 
 ### 📰 SSI
 Veille SSI quotidienne via 4 flux RSS (CERT-FR, ANSSI, Graham Cluley, Krebs on Security).
