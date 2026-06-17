@@ -239,7 +239,7 @@
           "parameters": [
             {
               "name": "content",
-              "value": "="{{ $json.content }}"
+              "value": "={{ $json.content }}"
             }
           ]
         },
