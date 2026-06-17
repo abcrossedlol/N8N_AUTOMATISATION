@@ -1,0 +1,238 @@
+{
+  "updatedAt": "2026-06-17T19:24:13.000Z",
+  "createdAt": "2026-04-13T18:31:17.442Z",
+  "id": "YOUR_WORKFLOW_ID",
+  "name": "AGENT_SSI",
+  "active": false,
+  "isArchived": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/2 * * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        32,
+        0
+      ],
+      "id": "cc058590-c49b-4f4b-9209-06771e21c661",
+      "name": "TRIGGER"
+    },
+    {
+      "parameters": {
+        "url": "https://discord.com/api/v10/channels/DISCORD_CHANNEL_ID/messages?limit=5",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "07a023f2-d08f-4536-9999-44b8df63bdf6",
+      "name": "GET_MESSAGES",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "N8N_CREDENTIAL_ID_DISCORD",
+          "name": "DISCORD BOT SSI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const messages = $input.all().map(item => item.json);\n\nconsole.log('MESSAGES:', JSON.stringify(messages.map(m => ({ id: m.id, content: m.content }))));\n\nconst lastProcessedId = '0';\n\nconst toProcess = messages.filter(msg => \n  msg && msg.content && msg.content.startsWith('!ssi ') && \n  !msg.author?.bot\n);\n\nif (toProcess.length === 0) return [];\n\nconst latestId = toProcess[0].id;\n\nreturn toProcess.map(msg => ({\n  json: {\n    question: msg.content.replace('!ssi ', '').trim(),\n    messageId: msg.id,\n    latestId\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        0
+      ],
+      "id": "0c0cd2c2-be66-4134-a831-c4ba422bf632",
+      "name": "FILTRE_SSI"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.1-8b-instant\",\n  \"max_tokens\": 500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Tu es un expert en cybersécurité et SSI. Tu réponds de façon claire, concise et professionnelle en français. Tu connais parfaitement les normes ISO 27001, EBIOS RM, DORA, et les bonnes pratiques SSI.\"\n    },\n    {\n      \"role\": \"user\", \n      \"content\": \"={{ $json.question }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        560,
+        0
+      ],
+      "id": "1c9faf87-285b-47e8-bed5-4d5982a80c02",
+      "name": "GROQ",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "N8N_CREDENTIAL_ID_GROQ",
+          "name": "GROK API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const reponse = $input.first().json.choices?.[0]?.message?.content || 'Désolé, je ne peux pas répondre.';\nconst question = $('FILTRE_SSI').first().json.question;\n\nconst content = `🤖 **SSI-Bot**\\n\\n❓ **Question :** ${question}\\n\\n💬 **Réponse :**\\n${reponse}`.substring(0, 1990);\n\nreturn [{ json: { content } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        0
+      ],
+      "id": "034399a9-d45c-4a56-a1b6-41ae4255155e",
+      "name": "FORMATEUR"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/v10/channels/DISCORD_CHANNEL_ID/messages?limit=5",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        912,
+        0
+      ],
+      "id": "61dbc41b-1e52-48b7-bba9-a8f5b4a521ad",
+      "name": "POST_DISCORD",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "N8N_CREDENTIAL_ID_DISCORD",
+          "name": "DISCORD BOT SSI"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "TRIGGER": {
+      "main": [
+        [
+          {
+            "node": "GET_MESSAGES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET_MESSAGES": {
+      "main": [
+        [
+          {
+            "node": "FILTRE_SSI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FILTRE_SSI": {
+      "main": [
+        [
+          {
+            "node": "GROQ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GROQ": {
+      "main": [
+        [
+          {
+            "node": "FORMATEUR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FORMATEUR": {
+      "main": [
+        [
+          {
+            "node": "POST_DISCORD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "YOUR_VERSION_ID",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-04-13T18:31:17.443Z",
+      "createdAt": "2026-04-13T18:31:17.443Z",
+      "role": "workflow:owner",
+      "workflowId": "YOUR_WORKFLOW_ID",
+      "projectId": "YOUR_N8N_PROJECT_ID"
+    }
+  ],
+  "activeVersion": null,
+  "tags": []
+}
