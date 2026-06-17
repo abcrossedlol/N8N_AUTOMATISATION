@@ -32,6 +32,7 @@ Sauvegarde automatique de tous les workflows n8n vers ce repo GitHub.
 ### 🔎 RECHERCHE_ALTERNANCE
 Recherche automatisée d'offres d'alternance via JSearch, SerpAPI et Hunter.io.
 Enrichissement des contacts avec Hunter.io et export vers Google Sheets.
+<img width="2005" height="521" alt="image" src="https://github.com/user-attachments/assets/9bd3712e-02a4-4e9e-9a0c-4c0b6255b45d" />
 
 ## 🛠️ Stack technique
 - n8n (self-hosted via Docker)
