@@ -1,44 +1,29 @@
 {
-  "updatedAt": "2026-06-17T20:08:33.679Z",
+  "updatedAt": "2026-06-17T20:24:35.202Z",
   "createdAt": "2026-06-17T19:56:12.457Z",
   "id": "YOUR_WORKFLOW_ID",
-  "name": "CVE VEILLE",
+  "name": "CVE_VEILLE",
   "active": false,
   "isArchived": false,
   "nodes": [
     {
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 8 * * *"
-            }
-          ]
-        }
+        "rule": {"interval": [{"field": "cronExpression", "expression": "0 8 * * *"}]}
       },
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.3,
-      "position": [
-        -1200,
-        256
-      ],
+      "position": [-1200, 256],
       "id": "b0e2c113-d2d2-4654-90b1-69af51bf3214",
       "name": "TRIGGER"
     },
     {
       "parameters": {
         "url": "=https://services.nvd.nist.gov/rest/json/cves/2.0?pubStartDate={{$now.minus(1,'day').startOf('day').toISO()}}&pubEndDate={{$now.startOf('day').toISO()}}",
-        "options": {
-          "timeout": 60000
-        }
+        "options": {"timeout": 60000}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
-      "position": [
-        -992,
-        256
-      ],
+      "position": [-992, 256],
       "id": "465e0af3-f94d-4c31-ab96-a7943a33a6d8",
       "name": "GET_CVE",
       "retryOnFail": false,
@@ -46,424 +31,105 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.first().json.vulnerabilities || [];\n\nconst filtered = items.filter(v => {\n  const metrics = v.cve?.metrics?.cvssMetricV31 || v.cve?.metrics?.cvssMetricV30 || [];\n  if (metrics.length === 0) return false;\n  const score = metrics[0].cvssData?.baseScore || 0;\n  return score >= 7;\n});\n\nreturn filtered.map(v => {\n  const metrics = v.cve?.metrics?.cvssMetricV31 || v.cve?.metrics?.cvssMetricV30 || [];\n  const score = metrics[0]?.cvssData?.baseScore || 'N/A';\n  const severity = metrics[0]?.cvssData?.baseSeverity || 'N/A';\n  const desc = v.cve?.descriptions?.find(d => d.lang === 'en')?.value || 'No description';\n  const id = v.cve?.id || 'Unknown';\n\n  return {\n    json: {\n      id,\n      score,\n      severity,\n      description: desc.substring(0, 300),\n      url: `https://nvd.nist.gov/vuln/detail/${id}`\n    }\n  };\n});"
+        "jsCode": "const items = $input.first().json.vulnerabilities || [];\n\nconst filtered = items.filter(v => {\n  const metrics = v.cve?.metrics?.cvssMetricV31 || v.cve?.metrics?.cvssMetricV30 || [];\n  if (metrics.length === 0) return false;\n  const score = metrics[0].cvssData?.baseScore || 0;\n  return score >= 7;\n});\n\nreturn filtered.map(v => {\n  const metrics = v.cve?.metrics?.cvssMetricV31 || v.cve?.metrics?.cvssMetricV30 || [];\n  const score = metrics[0]?.cvssData?.baseScore || 'N/A';\n  const severity = metrics[0]?.cvssData?.baseSeverity || 'N/A';\n  const desc = v.cve?.descriptions?.find(d => d.lang === 'en')?.value || 'No description';\n  const id = v.cve?.id || 'Unknown';\n  return { json: { id, score, severity, description: desc.substring(0, 300), url: `https://nvd.nist.gov/vuln/detail/${id}` } };\n});"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        -784,
-        256
-      ],
+      "position": [-784, 256],
       "id": "b05a5eb2-58c2-4d1d-8a7e-578c808120c6",
       "name": "FILTRE_CVSS"
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\n\nconst technos = {\n  windows: ['windows', 'active directory', 'microsoft', 'win32', 'mshtml', 'outlook', 'office'],\n  linux: ['linux', 'debian', 'ubuntu', 'rhel', 'centos', 'kernel', 'gnu'],\n  apache: ['apache', 'nginx', 'http server', 'tomcat', 'httpd'],\n  cisco: ['cisco', 'ios', 'nx-os', 'asa', 'firepower', 'catalyst']\n};\n\nconst emojis = { windows: '🪟', linux: '🐧', apache: '🌐', cisco: '🔧', autres: '❓' };\n\n// Classe chaque CVE dans une ou plusieurs technos\nconst buckets = { windows: [], linux: [], apache: [], cisco: [] };\n\nfor (const item of items) {\n  const desc = (item.json.description || '').toLowerCase();\n  const id = (item.json.id || '').toLowerCase();\n  const text = desc + ' ' + id;\n\n  for (const [techno, keywords] of Object.entries(technos)) {\n    if (keywords.some(kw => text.includes(kw))) {\n      buckets[techno].push(item.json);\n    }\n  }\n}\n\nconst results = [];\n\n// Formate un message par techno\nfor (const [techno, cves] of Object.entries(buckets)) {\n  if (cves.length === 0) continue;\n\n  const top = cves.slice(0, 5);\n  const lines = top.map(cve => {\n    const emoji = cve.score >= 9 ? '🔴' : '🟠';\n    const shortDesc = cve.description.substring(0, 100);\n    return `${emoji} **${cve.id}** (${cve.score} - ${cve.severity})\\n${shortDesc}...\\n${cve.url}`;\n  });\n\n  const content = `${emojis[techno]} **Veille CVE ${techno.toUpperCase()} du ${new Date().toLocaleDateString('fr-FR')}** (${cves.length} CVE)\\n\\n${lines.join('\\n\\n')}`.substring(0, 1990);\n\n  results.push({ json: { techno, content } });\n}\n\n// CVE qui n'ont matché aucune techno → salon #cve-autres\nconst matchedIds = Object.values(buckets).flat().map(cve => cve.id);\nconst autres = items.filter(item => !matchedIds.includes(item.json.id));\n\nif (autres.length > 0) {\n  const top = autres.slice(0, 5);\n  const lines = top.map(cve => {\n    const emoji = cve.json.score >= 9 ? '🔴' : '🟠';\n    const shortDesc = cve.json.description.substring(0, 100);\n    return `${emoji} **${cve.json.id}** (${cve.json.score} - ${cve.json.severity})\\n${shortDesc}...\\n${cve.json.url}`;\n  });\n\n  const content = `${emojis['autres']} **Veille CVE AUTRES du ${new Date().toLocaleDateString('fr-FR')}** (${autres.length} CVE)\\n\\n${lines.join('\\n\\n')}`.substring(0, 1990);\n\n  results.push({ json: { techno: 'autres', content } });\n}\n\n// Aucune CVE du tout\nif (results.length === 0) {\n  return [{ json: { techno: 'none', content: '' } }];\n}\nconsole.log('TECHNOS:', results.map(r => r.json.techno));\nreturn results;"
+        "jsCode": "const items = $input.all();\nconst technos = {\n  windows: ['windows', 'active directory', 'microsoft', 'win32', 'mshtml', 'outlook', 'office'],\n  linux: ['linux', 'debian', 'ubuntu', 'rhel', 'centos', 'kernel', 'gnu'],\n  apache: ['apache', 'nginx', 'http server', 'tomcat', 'httpd'],\n  cisco: ['cisco', 'ios', 'nx-os', 'asa', 'firepower', 'catalyst']\n};\nconst emojis = { windows: '🪟', linux: '🐧', apache: '🌐', cisco: '🔧', autres: '❓' };\nconst buckets = { windows: [], linux: [], apache: [], cisco: [] };\nfor (const item of items) {\n  const desc = (item.json.description || '').toLowerCase();\n  const id = (item.json.id || '').toLowerCase();\n  const text = desc + ' ' + id;\n  for (const [techno, keywords] of Object.entries(technos)) {\n    if (keywords.some(kw => text.includes(kw))) buckets[techno].push(item.json);\n  }\n}\nconst results = [];\nfor (const [techno, cves] of Object.entries(buckets)) {\n  if (cves.length === 0) continue;\n  const top = cves.slice(0, 5);\n  const lines = top.map(cve => {\n    const emoji = cve.score >= 9 ? '🔴' : '🟠';\n    return `${emoji} **${cve.id}** (${cve.score} - ${cve.severity})\\n${cve.description.substring(0, 100)}...\\n${cve.url}`;\n  });\n  const content = `${emojis[techno]} **Veille CVE ${techno.toUpperCase()} du ${new Date().toLocaleDateString('fr-FR')}** (${cves.length} CVE)\\n\\n${lines.join('\\n\\n')}`.substring(0, 1990);\n  results.push({ json: { techno, content } });\n}\nconst matchedIds = Object.values(buckets).flat().map(cve => cve.id);\nconst autres = items.filter(item => !matchedIds.includes(item.json.id));\nif (autres.length > 0) {\n  const top = autres.slice(0, 5);\n  const lines = top.map(cve => {\n    const emoji = cve.json.score >= 9 ? '🔴' : '🟠';\n    return `${emoji} **${cve.json.id}** (${cve.json.score} - ${cve.json.severity})\\n${cve.json.description.substring(0, 100)}...\\n${cve.json.url}`;\n  });\n  const content = `${emojis['autres']} **Veille CVE AUTRES du ${new Date().toLocaleDateString('fr-FR')}** (${autres.length} CVE)\\n\\n${lines.join('\\n\\n')}`.substring(0, 1990);\n  results.push({ json: { techno: 'autres', content } });\n}\nif (results.length === 0) return [{ json: { techno: 'none', content: '' } }];\nconsole.log('TECHNOS:', results.map(r => r.json.techno));\nreturn results;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        -576,
-        256
-      ],
+      "position": [-576, 256],
       "id": "ed077910-e25a-4dce-adbe-440dd39bda8a",
       "name": "TRI_TECHNO"
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "bd45f81f-04a6-4862-a36e-ec5bf56246ee",
-              "leftValue": "={{ $json.techno }}",
-              "rightValue": "windows",
-              "operator": {
-                "type": "string",
-                "operation": "equals",
-                "name": "filter.operator.equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "conditions": {"options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [{"id": "bd45f81f-04a6-4862-a36e-ec5bf56246ee", "leftValue": "={{ $json.techno }}", "rightValue": "windows", "operator": {"type": "string", "operation": "equals", "name": "filter.operator.equals"}}],
+          "combinator": "and"}, "options": {}
       },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        -384,
-        128
-      ],
-      "id": "e324baef-3419-4307-8238-8d15b7943ae7",
-      "name": "IF_WINDOWS"
+      "type": "n8n-nodes-base.if", "typeVersion": 2.3, "position": [-384, 128],
+      "id": "e324baef-3419-4307-8238-8d15b7943ae7", "name": "IF_WINDOWS"
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "69f285df-b5e4-450b-9b63-3fdcbea0aac3",
-              "leftValue": "={{ $json.techno }}",
-              "rightValue": "linux",
-              "operator": {
-                "type": "string",
-                "operation": "equals",
-                "name": "filter.operator.equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "conditions": {"options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [{"id": "69f285df-b5e4-450b-9b63-3fdcbea0aac3", "leftValue": "={{ $json.techno }}", "rightValue": "linux", "operator": {"type": "string", "operation": "equals", "name": "filter.operator.equals"}}],
+          "combinator": "and"}, "options": {}
       },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        -384,
-        288
-      ],
-      "id": "db68f51c-1812-4412-ae92-b4fe052aba38",
-      "name": "IF_LINUX"
+      "type": "n8n-nodes-base.if", "typeVersion": 2.3, "position": [-384, 288],
+      "id": "db68f51c-1812-4412-ae92-b4fe052aba38", "name": "IF_LINUX"
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "6762b850-dace-4b73-a1bd-93e7d4331b3f",
-              "leftValue": "={{ $json.techno }}",
-              "rightValue": "apache",
-              "operator": {
-                "type": "string",
-                "operation": "equals",
-                "name": "filter.operator.equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "conditions": {"options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [{"id": "6762b850-dace-4b73-a1bd-93e7d4331b3f", "leftValue": "={{ $json.techno }}", "rightValue": "apache", "operator": {"type": "string", "operation": "equals", "name": "filter.operator.equals"}}],
+          "combinator": "and"}, "options": {}
       },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        -384,
-        448
-      ],
-      "id": "423b1c05-0b11-4b3b-83e0-57e4aaa50d51",
-      "name": "IF_APACHE"
+      "type": "n8n-nodes-base.if", "typeVersion": 2.3, "position": [-384, 448],
+      "id": "423b1c05-0b11-4b3b-83e0-57e4aaa50d51", "name": "IF_APACHE"
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "92b9d156-bce9-4b1e-a3a2-275af774c42f",
-              "leftValue": "={{ $json.techno }}",
-              "rightValue": "cisco",
-              "operator": {
-                "type": "string",
-                "operation": "equals",
-                "name": "filter.operator.equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "conditions": {"options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [{"id": "92b9d156-bce9-4b1e-a3a2-275af774c42f", "leftValue": "={{ $json.techno }}", "rightValue": "cisco", "operator": {"type": "string", "operation": "equals", "name": "filter.operator.equals"}}],
+          "combinator": "and"}, "options": {}
       },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        -384,
-        592
-      ],
-      "id": "a78e5fdf-6a81-4757-95ff-a6fb21a4651b",
-      "name": "IF_CISCO"
+      "type": "n8n-nodes-base.if", "typeVersion": 2.3, "position": [-384, 592],
+      "id": "a78e5fdf-6a81-4757-95ff-a6fb21a4651b", "name": "IF_CISCO"
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "DISCORD_WEBHOOK_URL_WINDOWS",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "content",
-              "value": "={{ $json.content }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        0,
-        0
-      ],
-      "id": "373037de-a6ec-44e3-9fad-eb4ac4efb85c",
-      "name": "DISCORD_WINDOWS"
+      "parameters": {"method": "POST", "url": "DISCORD_WEBHOOK_URL_WINDOWS",
+        "sendBody": true, "bodyParameters": {"parameters": [{"name": "content", "value": "={{ $json.content }}"}]}, "options": {}},
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [0, 0],
+      "id": "373037de-a6ec-44e3-9fad-eb4ac4efb85c", "name": "DISCORD_WINDOWS"
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "DISCORD_WEBHOOK_URL_LINUX",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "content",
-              "value": "={{ $json.content }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        0,
-        160
-      ],
-      "id": "93463f35-94e4-4472-b5d0-cce059785e3f",
-      "name": "DISCORD_LINUX"
+      "parameters": {"method": "POST", "url": "DISCORD_WEBHOOK_URL_LINUX",
+        "sendBody": true, "bodyParameters": {"parameters": [{"name": "content", "value": "={{ $json.content }}"}]}, "options": {}},
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [0, 160],
+      "id": "93463f35-94e4-4472-b5d0-cce059785e3f", "name": "DISCORD_LINUX"
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "DISCORD_WEBHOOK_URL_APACHE",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "content",
-              "value": "={{ $json.content }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        0,
-        304
-      ],
-      "id": "b669c69c-bd41-45fc-b61f-8918643b25f0",
-      "name": "DISCORD_APACHE"
+      "parameters": {"method": "POST", "url": "DISCORD_WEBHOOK_URL_APACHE",
+        "sendBody": true, "bodyParameters": {"parameters": [{"name": "content", "value": "={{ $json.content }}"}]}, "options": {}},
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [0, 304],
+      "id": "b669c69c-bd41-45fc-b61f-8918643b25f0", "name": "DISCORD_APACHE"
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "DISCORD_WEBHOOK_URL_CISCO",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "content",
-              "value": "={{ $json.content }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        0,
-        464
-      ],
-      "id": "01784625-5841-4cab-ad8c-c7158025ff26",
-      "name": "DISCORD_CISCO"
+      "parameters": {"method": "POST", "url": "DISCORD_WEBHOOK_URL_CISCO",
+        "sendBody": true, "bodyParameters": {"parameters": [{"name": "content", "value": "={{ $json.content }}"}]}, "options": {}},
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [0, 464],
+      "id": "01784625-5841-4cab-ad8c-c7158025ff26", "name": "DISCORD_CISCO"
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "DISCORD_WEBHOOK_URL_AUTRES",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "content",
-              "value": "={{ $json.content }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        0,
-        624
-      ],
-      "id": "92cc8289-fbb5-4af1-9655-368c6fdf36d1",
-      "name": "DISCORD_AUTRES"
+      "parameters": {"method": "POST", "url": "DISCORD_WEBHOOK_URL_AUTRES",
+        "sendBody": true, "bodyParameters": {"parameters": [{"name": "content", "value": "={{ $json.content }}"}]}, "options": {}},
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.4, "position": [0, 624],
+      "id": "92cc8289-fbb5-4af1-9655-368c6fdf36d1", "name": "DISCORD_AUTRES"
     }
   ],
   "connections": {
-    "TRIGGER": {
-      "main": [
-        [
-          {
-            "node": "GET_CVE",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "GET_CVE": {
-      "main": [
-        [
-          {
-            "node": "FILTRE_CVSS",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "FILTRE_CVSS": {
-      "main": [
-        [
-          {
-            "node": "TRI_TECHNO",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "TRI_TECHNO": {
-      "main": [
-        [
-          {
-            "node": "IF_WINDOWS",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF_WINDOWS": {
-      "main": [
-        [
-          {
-            "node": "DISCORD_WINDOWS",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "IF_LINUX",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF_LINUX": {
-      "main": [
-        [
-          {
-            "node": "DISCORD_LINUX",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "IF_APACHE",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF_APACHE": {
-      "main": [
-        [
-          {
-            "node": "DISCORD_APACHE",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "IF_CISCO",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF_CISCO": {
-      "main": [
-        [
-          {
-            "node": "DISCORD_CISCO",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "DISCORD_AUTRES",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "TRIGGER": {"main": [[{"node": "GET_CVE", "type": "main", "index": 0}]]},
+    "GET_CVE": {"main": [[{"node": "FILTRE_CVSS", "type": "main", "index": 0}]]},
+    "FILTRE_CVSS": {"main": [[{"node": "TRI_TECHNO", "type": "main", "index": 0}]]},
+    "TRI_TECHNO": {"main": [[{"node": "IF_WINDOWS", "type": "main", "index": 0}]]},
+    "IF_WINDOWS": {"main": [[{"node": "DISCORD_WINDOWS", "type": "main", "index": 0}], [{"node": "IF_LINUX", "type": "main", "index": 0}]]},
+    "IF_LINUX": {"main": [[{"node": "DISCORD_LINUX", "type": "main", "index": 0}], [{"node": "IF_APACHE", "type": "main", "index": 0}]]},
+    "IF_APACHE": {"main": [[{"node": "DISCORD_APACHE", "type": "main", "index": 0}], [{"node": "IF_CISCO", "type": "main", "index": 0}]]},
+    "IF_CISCO": {"main": [[{"node": "DISCORD_CISCO", "type": "main", "index": 0}], [{"node": "DISCORD_AUTRES", "type": "main", "index": 0}]]}
   },
-  "settings": {
-    "executionOrder": "v1",
-    "binaryMode": "separate"
-  },
-  "staticData": null,
-  "meta": null,
-  "pinData": {},
+  "settings": {"executionOrder": "v1", "binaryMode": "separate"},
+  "staticData": null, "meta": null, "pinData": {},
   "versionId": "YOUR_VERSION_ID",
-  "activeVersionId": null,
-  "triggerCount": 0,
-  "shared": [
-    {
-      "updatedAt": "2026-06-17T19:56:12.460Z",
-      "createdAt": "2026-06-17T19:56:12.460Z",
-      "role": "workflow:owner",
-      "workflowId": "YOUR_WORKFLOW_ID",
-      "projectId": "YOUR_N8N_PROJECT_ID"
-    }
-  ],
-  "activeVersion": null,
-  "tags": []
+  "activeVersionId": null, "triggerCount": 0,
+  "shared": [{"updatedAt": "2026-06-17T19:56:12.460Z", "createdAt": "2026-06-17T19:56:12.460Z", "role": "workflow:owner", "workflowId": "YOUR_WORKFLOW_ID", "projectId": "YOUR_N8N_PROJECT_ID"}],
+  "activeVersion": null, "tags": []
 }
