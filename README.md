@@ -13,6 +13,7 @@ et envoie des alertes dans des salons Discord dédiés chaque jour à 8h.
 ### 📰 SSI
 Veille SSI quotidienne via 4 flux RSS (CERT-FR, ANSSI, Graham Cluley, Krebs on Security).
 Résumés automatiques en français par IA (Groq) envoyés sur Discord.
+<img width="2030" height="923" alt="image" src="https://github.com/user-attachments/assets/e011ed7c-50c7-48e2-8a24-af3c67424870" />
 
 ### 🤖 AGENT_SSI
 Bot Discord qui répond aux questions cybersécurité avec la commande `!ssi`.
