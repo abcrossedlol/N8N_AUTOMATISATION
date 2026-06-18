@@ -42,4 +42,4 @@ Enrichissement des contacts avec Hunter.io et export vers Google Sheets.
 - CERT-FR, ANSSI, Krebs on Security (flux RSS)
 
 ## 👤 Auteur
-abcross
+abcross.dll (discord)
